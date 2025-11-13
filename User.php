@@ -1,6 +1,6 @@
 <?php
 
-// Empêcher injection SQL
+// Empêche injection SQL
 function esc($str)
 {
     global $connexion;
@@ -17,36 +17,151 @@ class User
     public $lastname;
 
     private $connexion;
+    private $connected = false;
 
     public function __construct($connexion)
     {
         $this->connexion = $connexion;
     }
 
-    // Création d'un nouvel utilisateur
-    public function create($login, $password, $email, $firstname, $lastname)
+    // Crée un utilisateur 
+    public function register($login, $password, $email, $firstname, $lastname)
     {
-
-        // Sécurisation des données contre injections SQL
-        $login = esc($this->connexion, $login);
-        $email = esc($this->connexion, $email);
-        $firstname = esc($this->connexion, $firstname);
-        $lastname = esc($this->connexion, $lastname);
-        $password = password_hash($password, PASSWORD_DEFAULT);
+        $login = esc($login);
+        $email = esc($email);
+        $firstname = esc($firstname);
+        $lastname = esc($lastname);
+        $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 
         $sql = "INSERT INTO utilisateurs (login, password, email, firstname, lastname)
-                VALUES ('$login', '$password', '$email', '$firstname', '$lastname')";
+                VALUES ('$login', '$passwordHash', '$email', '$firstname', '$lastname')";
 
         if (mysqli_query($this->connexion, $sql)) {
-            echo "Utilisateur crée avec succès !<br>";
-            return true;
+
+            // Connecte automatiquement l’utilisateur
+            $this->connect($login, $password);
+            return $this->getAllInfos();
         } else {
-            echo "Erreur lors de la création : " . mysqli_error($this->connexion);
+            echo "Erreur lors de l'inscription : " . mysqli_error($this->connexion);
             return false;
         }
     }
 
-    // Récupère un utilisateur par son Id
+    // Connexion
+    public function connect($login, $password)
+    {
+        $login = esc($login);
+        $sql = "SELECT * FROM utilisateurs WHERE login = '$login'";
+        $result = mysqli_query($this->connexion, $sql);
+
+        if ($result && mysqli_num_rows($result) > 0) {
+            $data = mysqli_fetch_assoc($result);
+            if (password_verify($password, $data['password'])) {
+                $this->id = $data['id'];
+                $this->login = $data['login'];
+                $this->email = $data['email'];
+                $this->firstname = $data['firstname'];
+                $this->lastname = $data['lastname'];
+                $this->connected = true;
+                return true;
+            }
+        }
+
+        $this->connected = false;
+        return false;
+    }
+
+    // Déconnexion
+    public function disconnect()
+    {
+        $this->id = null;
+        $this->login = null;
+        $this->email = null;
+        $this->firstname = null;
+        $this->lastname = null;
+        $this->connected = false;
+    }
+
+    // Supprime utilisateur et déconnecte
+    public function delete()
+    {
+        if ($this->connected && $this->id) {
+            $sql = "DELETE FROM utilisateurs WHERE id = $this->id";
+            if (mysqli_query($this->connexion, $sql)) {
+                $this->disconnect();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Met à jour l’utilisateur
+    public function update($login, $password, $email, $firstname, $lastname)
+    {
+        if (!$this->connected || !$this->id) return false;
+
+        $login = esc($login);
+        $email = esc($email);
+        $firstname = esc($firstname);
+        $lastname = esc($lastname);
+        $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+
+        $sql = "UPDATE utilisateurs 
+                SET login='$login', password='$passwordHash', email='$email', firstname='$firstname', lastname='$lastname'
+                WHERE id=$this->id";
+
+        if (mysqli_query($this->connexion, $sql)) {
+            // Met à jour les attributs de l'objet
+            $this->login = $login;
+            $this->email = $email;
+            $this->firstname = $firstname;
+            $this->lastname = $lastname;
+            return true;
+        }
+        return false;
+    }
+
+    // Vérifie si connecté
+    public function isConnected()
+    {
+        return $this->connected;
+    }
+
+    // Retourne toutes les informations
+    public function getAllInfos()
+    {
+        if ($this->connected) {
+            return [
+                "id" => $this->id,
+                "login" => $this->login,
+                "email" => $this->email,
+                "firstname" => $this->firstname,
+                "lastname" => $this->lastname
+            ];
+        }
+        return null;
+    }
+
+    // Getters 
+    public function getLogin()
+    {
+        return $this->login;
+    }
+    public function getEmail()
+    {
+        return $this->email;
+    }
+    public function getFirstname()
+    {
+        return $this->firstname;
+    }
+    public function getLastname()
+    {
+        return $this->lastname;
+    }
+
+
+    // Lis un utilisateur par son ID
     public function read($id)
     {
         $id = (int)$id;
@@ -55,55 +170,13 @@ class User
 
         if ($result && mysqli_num_rows($result) > 0) {
             $data = mysqli_fetch_assoc($result);
-
             $this->id = $data['id'];
             $this->login = $data['login'];
             $this->email = $data['email'];
             $this->firstname = $data['firstname'];
             $this->lastname = $data['lastname'];
-
             return $data;
-        } else {
-            echo "Aucun utilisateur trouvé $id.<br>";
-            return null;
         }
-    }
-
-    // Modifier un utilisateur
-    public function update($id, $login, $email, $firstname, $lastname)
-    {
-        $id = (int)$id;
-        $login = esc($this->connexion, $login);
-        $email = esc($this->connexion, $email);
-        $firstname = esc($this->connexion, $firstname);
-        $lastname = esc($this->connexion, $lastname);
-
-        $sql = "UPDATE utilisateurs
-                SET login='$login', email='$email', firstname='$firstname', lastname='$lastname'
-                WHERE id=$id";
-
-        if (mysqli_query($this->connexion, $sql)) {
-            echo "Utilisateur mis à jour avec succès ! <br>";
-            return true;
-        } else {
-            echo "Erreur lors de la modification : " . mysqli_error($this->connexion);
-            return false;
-        }
-    }
-
-    // Supprimer un utilisateur
-    public function delete($id)
-    {
-        $id = (int)$id;
-        $sql = "DELETE FROM utilisateurs
-                WHERE id = $id";
-
-        if (mysqli_query($this->connexion, $sql)) {
-            echo "Utilisateur supprimé avec succès !<br>";
-            return true;
-        } else {
-            echo "Erreur lors de la suppression : " . mysqli_error($this->connexion);
-            return false;
-        }
+        return null;
     }
 }
