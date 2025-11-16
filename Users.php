@@ -176,6 +176,7 @@ class Users
     }
 }
 
+// TEST
 $connexion = mysqli_connect("localhost", "root", "", "classes");
 $u1 = new Users($connexion);
 $u1->register("Pops", "Mdp", "pauline@plateforme.io", "Pauline", "Hiez");
