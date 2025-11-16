@@ -26,7 +26,7 @@ class Userpdo
 
         $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
 
-        $stmt->bindParam(':login', $login);
+        $stmt->bindParam(':login', $login); //bindParam => Garde la variable pour l'utiliser plus tard
         $stmt->bindParam(':password', $hashedPassword);
         $stmt->bindParam(':email', $email);;
         $stmt->bindParam(':firstname', $firstname);
@@ -183,3 +183,32 @@ class Userpdo
 }
 
 // TEST
+try {
+    $pdo = new PDO("mysql:host=localhost;dbname=classes;charset=utf8", "root", "");
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+    $user = new Userpdo($pdo);
+
+    // Tester register()
+    $infos = $user->register("DarkVador", "obscur", "vador@gmail.com", "Anakin", "Skywalker");
+    print_r($infos);
+
+    // Tester connect()
+    $user->connect("DarkVador", "obscur");
+    echo $user->isConnect() ? "Connecté !\n" : "Non connecté\n";
+
+    // Tester update()
+    $user->update("DarkVador", "obscur", "vador@gmail.com", "Anakin", "Skywalker");
+
+    // Tester getAllInfos()
+    print_r($user->getAllInfos());
+
+    // Déconnexion
+    $user->disconnect();
+
+    // Reconnexion et suppression
+    $user->connect("DarkVador", "obscur");
+    $user->delete();
+} catch (PDOException $e) {
+    echo "Erreur PDO : " . $e->getMessage();
+}
